@@ -36,8 +36,9 @@ Starts a new process with the specified command.
   
   ```json
   {
-    "command": "your-command-here",
-    "replace": true
+    "command": "echo the new token is $NEW_TOKEN",
+    "replace": true,
+    "env": ["NEW_TOKEN=123"]
   }
   ```
 
