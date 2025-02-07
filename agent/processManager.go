@@ -7,6 +7,8 @@ import (
 	"os"
 	"os/exec"
 	"sync"
+	"syscall"
+	"time"
 )
 
 type ProcessManager struct {
@@ -37,23 +39,24 @@ func NewProcessManager(opt NewProcessOpt) *ProcessManager {
 func (pm *ProcessManager) StartProcess(command string, replace bool) error {
 	pm.mu.Lock()
 
-	// If replace is true, stop the current process outside of the lock
 	if pm.Process != nil {
 		if replace {
-			pm.mu.Unlock() // Unlock before stopping the process
+			log.Println("Replacing existing process (PID:", pm.Process.Process.Pid, ")...")
+
+			// Unlock before stopping the process
+			pm.mu.Unlock()
 			if err := pm.StopProcess(); err != nil {
 				return fmt.Errorf("failed to stop existing process: %v", err)
 			}
 			pm.mu.Lock() // Reacquire the lock
 		} else {
-			pm.mu.Unlock() // Unlock before returning
+			pm.mu.Unlock()
 			return errors.New("process already running")
 		}
 	}
 
+	log.Printf("Starting process: %s %v\n", pm.Shell, append(pm.Args, command))
 	pm.Command = command
-	log.Printf("Running command: %s %v\n", pm.Shell, append(pm.Args, command))
-
 	pm.Process = exec.Command(pm.Shell, append(pm.Args, command)...)
 	pm.Process.Stdout = os.Stdout
 	pm.Process.Stderr = os.Stderr
@@ -63,10 +66,10 @@ func (pm *ProcessManager) StartProcess(command string, replace bool) error {
 		pm.mu.Unlock()
 		return fmt.Errorf("failed to start process: %v", err)
 	}
-
+	log.Println("Process started with PID:", pm.Process.Process.Pid)
 	// Handle process lifecycle in a separate goroutine
-	go func() {
-		err := pm.Process.Wait()
+	go func(proc *exec.Cmd, pid int) {
+		err := proc.Wait()
 
 		pm.mu.Lock()
 		defer pm.mu.Unlock()
@@ -76,18 +79,18 @@ func (pm *ProcessManager) StartProcess(command string, replace bool) error {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCode = exitErr.ExitCode()
 			}
-			log.Printf("Process exited with status code: %d, reason: %v\n", exitCode, err)
+			log.Printf("Process (PID: %d) exited with status code: %d, reason: %v\n", pid, exitCode, err)
 		}
 
-		// Clean up process reference
-		pm.Process = nil
+		// Ensure process is properly cleaned up
+		if pm.Process == proc {
+			pm.Process = nil
+		}
 
 		if pm.KeepAlive {
-			log.Println("Waiting for process...")
-		} else {
-			os.Exit(exitCode)
+			log.Println("Process exited but KeepAlive is enabled.")
 		}
-	}()
+	}(pm.Process, pm.Process.Process.Pid)
 
 	pm.mu.Unlock()
 	return nil
@@ -102,14 +105,31 @@ func (pm *ProcessManager) StopProcess() error {
 		return nil
 	}
 
-	log.Println("Stopping process...")
+	pid := pm.Process.Process.Pid
+	log.Println("Stopping process (PID:", pid, ")...")
 
-	// gracefully ? pm.Process.Process.Signal(syscall.SIGTERM)
-	if err := pm.Process.Process.Kill(); err != nil {
-		return fmt.Errorf("Failed to send SIGKILL: %v", err)
+	if err := pm.Process.Process.Signal(syscall.SIGTERM); err != nil {
+		log.Printf("Failed to send SIGTERM to PID %d: %v, trying SIGKILL", pid, err)
+		if err := pm.Process.Process.Kill(); err != nil {
+			return fmt.Errorf("failed to kill process %d: %v", pid, err)
+		}
+	}
+
+	// Wait for process to exit completely
+	done := make(chan struct{})
+	go func() {
+		pm.Process.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		log.Println("Process (PID:", pid, ") stopped successfully")
+	case <-time.After(5 * time.Second):
+		log.Println("Process (PID:", pid, ") did not exit in time, force killing...")
+		pm.Process.Process.Kill()
 	}
 
 	pm.Process = nil
-
 	return nil
 }
