@@ -36,7 +36,7 @@ func NewProcessManager(opt NewProcessOpt) *ProcessManager {
 	}
 }
 
-func (pm *ProcessManager) StartProcess(command string, replace bool) error {
+func (pm *ProcessManager) StartProcess(command string, replace bool, customEnv *[]string) error {
 	pm.mu.Lock()
 
 	if pm.Process != nil {
@@ -55,11 +55,17 @@ func (pm *ProcessManager) StartProcess(command string, replace bool) error {
 		}
 	}
 
-	log.Printf("Starting process: %s %v\n", pm.Shell, append(pm.Args, command))
+	log.Printf("Starting process: %s %v %s\n", pm.Shell, pm.Args, command)
 	pm.Command = command
 	pm.Process = exec.Command(pm.Shell, append(pm.Args, command)...)
 	pm.Process.Stdout = os.Stdout
 	pm.Process.Stderr = os.Stderr
+	env := os.Environ()
+	if customEnv != nil {
+		log.Println("Custom environment variables detected, applying...", customEnv)
+		env = append(env, *customEnv...)
+	}
+	pm.Process.Env = env
 
 	if err := pm.Process.Start(); err != nil {
 		pm.Process = nil
@@ -89,6 +95,8 @@ func (pm *ProcessManager) StartProcess(command string, replace bool) error {
 
 		if pm.KeepAlive {
 			log.Println("Process exited but KeepAlive is enabled.")
+		} else {
+			os.Exit(exitCode)
 		}
 	}(pm.Process, pm.Process.Process.Pid)
 

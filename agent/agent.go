@@ -53,17 +53,52 @@ func main() {
 		return
 	})
 
+	router.Put("/process", func(w http.ResponseWriter, r *http.Request) {
+		var options struct {
+			KeepAlive bool     `json:"keepAlive"`
+			Shell     string   `json:"shell"`
+			Args      []string `json:"args"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&options); err != nil {
+			http.Error(w, "Invalid request body", http.StatusBadRequest)
+			return
+		}
+
+		pm.KeepAlive = options.KeepAlive
+		pm.Shell = options.Shell
+		pm.Args = args
+
+		w.WriteHeader(http.StatusOK)
+		response := struct {
+			KeepAlive bool     `json:"keepAlive"`
+			Shell     string   `json:"shell"`
+			Args      []string `json:"args"`
+		}{
+			KeepAlive: pm.KeepAlive,
+			Shell:     pm.Shell,
+			Args:      pm.Args,
+		}
+
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+			return
+		}
+
+		return
+	})
+
 	router.Post("/start", func(w http.ResponseWriter, r *http.Request) {
 		var request struct {
-			Command string `json:"command"`
-			Replace bool   `json:"replace"`
+			Command string   `json:"command"`
+			Replace bool     `json:"replace"`
+			Env     []string `json:"env"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			http.Error(w, "Invalid request body", http.StatusBadRequest)
 			return
 		}
 
-		if err := pm.StartProcess(request.Command, request.Replace); err != nil {
+		if err := pm.StartProcess(request.Command, request.Replace, &request.Env); err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
@@ -93,7 +128,7 @@ func main() {
 	go func() {
 		if *command != "" {
 			log.Println("Starting initial command...")
-			if err := pm.StartProcess(*command, false); err != nil {
+			if err := pm.StartProcess(*command, false, nil); err != nil {
 				log.Fatalf("Failed to start initial process: %v", err)
 			}
 		}
