@@ -43,6 +43,7 @@ Starts a new process with the specified command.
   ```
 
   - `command`: The command to run.
+  - `env`: Add custom env var.
   - `replace`: If `true`, replaces the currently running process.
 
 **Response:**
