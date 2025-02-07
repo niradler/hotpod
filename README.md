@@ -2,7 +2,7 @@
 
 ## Overview
 
-Process Manager is a lightweight Go-based process management tool that allows you to start, stop, and manage long-running commands with support for keep-alive functionality. It is designed to run shell commands in a controlled manner and ensure reliability for daemon-like processes.
+HotPod is a lightweight Go-based process management tool that allows you to start, stop, and manage long-running commands with support for keep-alive functionality. It is designed to run shell commands in a controlled manner and ensure reliability for daemon-like processes.
 
 ## Features
 
