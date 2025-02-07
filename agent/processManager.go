@@ -99,7 +99,8 @@ func (pm *ProcessManager) StopProcess() error {
 	defer pm.mu.Unlock()
 
 	if pm.Process == nil {
-		return errors.New("no process running")
+		log.Println("No process to stop")
+		return nil
 	}
 
 	log.Println("Stopping process...")
