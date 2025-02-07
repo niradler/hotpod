@@ -10,7 +10,7 @@ import (
 
 const (
 	projectName = "hotpod" // Replace with your project name
-	version     = "v0.0.2" // Replace with your version
+	version     = "v0.0.3" // Replace with your version
 )
 
 func main() {

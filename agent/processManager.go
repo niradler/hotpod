@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/exec"
 	"sync"
-	"syscall"
 )
 
 type ProcessManager struct {
@@ -104,15 +103,13 @@ func (pm *ProcessManager) StopProcess() error {
 	}
 
 	log.Println("Stopping process...")
-	proc := pm.Process.Process
-	pm.Process = nil // Clear reference before signaling to avoid race conditions
 
-	if err := proc.Signal(syscall.SIGTERM); err != nil {
-		log.Printf("Failed to send SIGTERM: %v, trying SIGKILL", err)
-		if err := proc.Kill(); err != nil {
-			return fmt.Errorf("failed to kill process: %v", err)
-		}
+	// gracefully ? pm.Process.Process.Signal(syscall.SIGTERM)
+	if err := pm.Process.Process.Kill(); err != nil {
+		return fmt.Errorf("Failed to send SIGKILL: %v", err)
 	}
+
+	pm.Process = nil
 
 	return nil
 }
