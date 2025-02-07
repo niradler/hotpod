@@ -14,7 +14,8 @@ Process Manager is a lightweight Go-based process management tool that allows yo
 
 ## Usage
 
-Download the binary from release page.
+Download the binary from releases page.
+[https://github.com/niradler/hotpod/releases](https://github.com/niradler/hotpod/releases)
 Run a command using the process manager:
 
 ```sh
@@ -70,6 +71,8 @@ Stops the currently running process.
 | `-command`   | The command to run                              | `""`    |
 | `-shell`     | The shell to execute the command (e.g., `sh`)   | `sh`    |
 | `-keepalive` | Keep the processes running                      | `false` |
+| `-host`      | The host to listen on                           | `localhost` |
+| `-port`      | The server port                                 | `8080` |
 
 ## Contributing
 

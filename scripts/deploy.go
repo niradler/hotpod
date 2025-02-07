@@ -10,7 +10,7 @@ import (
 
 const (
 	projectName = "hotpod" // Replace with your project name
-	version     = "v0.0.9" // Replace with your version
+	version     = "v0.0.1" // Replace with your version
 )
 
 func main() {
@@ -72,7 +72,7 @@ func buildBinary(goos, goarch string) error {
 	}
 
 	// Build the binary
-	cmd := exec.Command("go", "build", "-o", output, ".")
+	cmd := exec.Command("go", "build", "-o", output, "./agent")
 	cmd.Env = append(os.Environ(), fmt.Sprintf("GOOS=%s", goos), fmt.Sprintf("GOARCH=%s", goarch))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
