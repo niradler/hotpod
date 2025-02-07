@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"flag"
-	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -46,30 +45,6 @@ func main() {
 		Args:      args,
 	})
 
-	go func() {
-		for logLine := range pm.LogStream {
-			fmt.Println(logLine)
-		}
-	}()
-
-	go func() {
-		for exitCode := range pm.ExitCode {
-			fmt.Printf("Process exited with code: %d\n", exitCode)
-			if pm.KeepAlive {
-				fmt.Println("Waiting... (keep alive is on)")
-			} else {
-				os.Exit(exitCode)
-			}
-		}
-	}()
-
-	if *command != "" {
-		log.Println("Starting initial command...")
-		if err := pm.StartProcess(*command, false); err != nil {
-			log.Fatalf("Failed to start initial process: %v", err)
-		}
-	}
-
 	router := chi.NewRouter()
 
 	router.Get("/_health", func(w http.ResponseWriter, r *http.Request) {
@@ -92,7 +67,7 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "Process started successfully\n")
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Process started successfully"))
 		return
@@ -103,18 +78,26 @@ func main() {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		fmt.Fprintf(w, "Process stopped successfully\n")
+
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("Process stopped successfully"))
 		return
 	})
 
-	err := http.ListenAndServe(*host+":"+*serverPort, router)
-
-	if err != nil {
+	go func() {
+		err := http.ListenAndServe(*host+":"+*serverPort, router)
 		log.Fatalf("Failed to start server: %v", err)
-	}
+		panic(err)
+	}()
 
+	go func() {
+		if *command != "" {
+			log.Println("Starting initial command...")
+			if err := pm.StartProcess(*command, false); err != nil {
+				log.Fatalf("Failed to start initial process: %v", err)
+			}
+		}
+	}()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit

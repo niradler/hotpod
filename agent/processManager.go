@@ -1,22 +1,22 @@
 package main
 
 import (
-	"bufio"
 	"errors"
 	"fmt"
-	"io"
+	"log"
+	"os"
 	"os/exec"
+	"sync"
 	"syscall"
 )
 
 type ProcessManager struct {
+	mu        sync.Mutex
 	Process   *exec.Cmd
 	KeepAlive bool
 	Command   string
 	Shell     string
 	Args      []string
-	ExitCode  chan int
-	LogStream chan string
 }
 
 type NewProcessOpt struct {
@@ -32,83 +32,86 @@ func NewProcessManager(opt NewProcessOpt) *ProcessManager {
 		Shell:     opt.Shell,
 		Command:   opt.Command,
 		Args:      opt.Args,
-		ExitCode:  make(chan int, 1),
-		LogStream: make(chan string, 100), // Buffered channel to prevent blocking
 	}
 }
 
 func (pm *ProcessManager) StartProcess(command string, replace bool) error {
+	pm.mu.Lock()
+
+	// If replace is true, stop the current process outside of the lock
 	if pm.Process != nil {
 		if replace {
-			pm.StopProcess()
+			pm.mu.Unlock() // Unlock before stopping the process
+			if err := pm.StopProcess(); err != nil {
+				return fmt.Errorf("failed to stop existing process: %v", err)
+			}
+			pm.mu.Lock() // Reacquire the lock
 		} else {
+			pm.mu.Unlock() // Unlock before returning
 			return errors.New("process already running")
 		}
 	}
 
 	pm.Command = command
+	log.Printf("Running command: %s %v\n", pm.Shell, append(pm.Args, command))
+
 	pm.Process = exec.Command(pm.Shell, append(pm.Args, command)...)
+	pm.Process.Stdout = os.Stdout
+	pm.Process.Stderr = os.Stderr
 
-	stdout, err := pm.Process.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to capture stdout: %v", err)
-	}
-	stderr, err := pm.Process.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("failed to capture stderr: %v", err)
-	}
-
-	// Start the process before streaming logs
 	if err := pm.Process.Start(); err != nil {
-		pm.Process = nil // Ensure cleanup if failed
+		pm.Process = nil
+		pm.mu.Unlock()
 		return fmt.Errorf("failed to start process: %v", err)
 	}
 
-	// Stream logs asynchronously
-	go pm.streamOutput(stdout)
-	go pm.streamOutput(stderr)
-
-	// Wait for process completion
+	// Handle process lifecycle in a separate goroutine
 	go func() {
 		err := pm.Process.Wait()
-		exitCode := 0
+
+		pm.mu.Lock()
+		defer pm.mu.Unlock()
+
+		exitCode := 1
 		if err != nil {
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCode = exitErr.ExitCode()
-			} else {
-				exitCode = 1
 			}
+			log.Printf("Process exited with status code: %d, reason: %v\n", exitCode, err)
 		}
-		pm.ExitCode <- exitCode
+
+		// Clean up process reference
 		pm.Process = nil
+
+		if pm.KeepAlive {
+			log.Println("Waiting for process...")
+		} else {
+			os.Exit(exitCode)
+		}
 	}()
 
+	pm.mu.Unlock()
 	return nil
 }
 
-func (pm *ProcessManager) streamOutput(pipe io.ReadCloser) {
-	scanner := bufio.NewScanner(pipe)
-	for scanner.Scan() {
-		line := scanner.Text()
-		fmt.Println(line)
-		pm.LogStream <- line
-	}
-	if err := scanner.Err(); err != nil {
-		pm.LogStream <- fmt.Sprintf("error reading output: %v", err)
-	}
-}
-
 func (pm *ProcessManager) StopProcess() error {
+	pm.mu.Lock()
+	defer pm.mu.Unlock()
+
 	if pm.Process == nil {
 		return errors.New("no process running")
 	}
 
-	if err := pm.Process.Process.Signal(syscall.SIGTERM); err != nil {
-		if err := pm.Process.Process.Kill(); err != nil {
+	log.Println("Stopping process...")
+	proc := pm.Process.Process
+	pm.Process = nil // Clear reference before signaling to avoid race conditions
+
+	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		log.Printf("Failed to send SIGTERM: %v, trying SIGKILL", err)
+		if err := proc.Kill(); err != nil {
 			return fmt.Errorf("failed to kill process: %v", err)
 		}
 	}
 
-	pm.Process = nil
 	return nil
 }
