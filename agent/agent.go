@@ -65,8 +65,12 @@ func main() {
 		}
 
 		pm.KeepAlive = options.KeepAlive
-		pm.Shell = options.Shell
-		pm.Args = args
+		if options.Shell != "" {
+			pm.Shell = options.Shell
+		}
+		if len(options.Args) > 0 {
+			pm.Args = args
+		}
 
 		w.WriteHeader(http.StatusOK)
 		response := struct {

@@ -15,56 +15,20 @@ Process Manager is a lightweight Go-based process management tool that allows yo
 ## Usage
 
 Download the binary from releases page.
+
 [https://github.com/niradler/hotpod/releases](https://github.com/niradler/hotpod/releases)
+
 Run a command using the process manager:
 
 ```sh
-./hotpod -command "python -m http.server 8000" -shell "sh" -keepalive=true
+./hotpod -command "python -m http.server 8000" -shell "sh" -keepalive=true -host localhost -port 8080
 ```
+
+[Example docker file](https://github.com/niradler/hotpod/blob/master/Dockerfile)
 
 ## API
 
-### `/start`
-
-Starts a new process with the specified command.
-
-**Request:**
-
-- Method: `POST`
-- URL: `/start`
-- Body (JSON):
-  
-  ```json
-  {
-    "command": "echo the new token is $NEW_TOKEN",
-    "replace": true,
-    "env": ["NEW_TOKEN=123"]
-  }
-  ```
-
-  - `command`: The command to run.
-  - `env`: Add custom env var.
-  - `replace`: If `true`, replaces the currently running process.
-
-**Response:**
-
-- Status: `200 OK` if the process starts successfully.
-- Status: `400 Bad Request` if the request body is invalid.
-- Status: `500 Internal Server Error` if there is an error starting the process.
-
-### `/stop`
-
-Stops the currently running process.
-
-**Request:**
-
-- Method: `POST`
-- URL: `/stop`
-
-**Response:**
-
-- Status: `200 OK` if the process stops successfully.
-- Status: `500 Internal Server Error` if there is an error stopping the process.
+[Swagger/Openapi](https://github.com/niradler/hotpod/blob/master/swagger.yaml)
 
 ## Configuration Options
 
