@@ -85,9 +85,23 @@ func createGitHubRelease() error {
 	if _, err := exec.LookPath("gh"); err != nil {
 		return fmt.Errorf("GitHub CLI (gh) is not installed. Install it from https://cli.github.com")
 	}
+	// Check if the release already exists
+	checkCmd := exec.Command("gh", "release", "view", version)
+	checkCmd.Stdout = os.Stdout
+	checkCmd.Stderr = os.Stderr
+	if err := checkCmd.Run(); err == nil {
+		// Release exists, delete it
+		deleteCmd := exec.Command("gh", "release", "delete", version, "--yes")
+		deleteCmd.Stdout = os.Stdout
+		deleteCmd.Stderr = os.Stderr
+		if err := deleteCmd.Run(); err != nil {
+			return fmt.Errorf("failed to delete existing GitHub release: %v", err)
+		}
+		fmt.Println("Deleted existing release")
+	}
 
 	// Create the release
-	releaseCmd := exec.Command("gh", "release", "create", version, "--title", version, "--notes", "Release notes")
+	releaseCmd := exec.Command("gh", "release", "create", version, "--title", version, "--notes", "Process Manager is a lightweight Go-based process management tool that allows you to start, stop, and manage long-running commands with support for keep-alive functionality. It is designed to run shell commands in a controlled manner and ensure reliability for daemon-like processes.")
 	releaseCmd.Stdout = os.Stdout
 	releaseCmd.Stderr = os.Stderr
 	if err := releaseCmd.Run(); err != nil {
