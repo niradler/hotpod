@@ -14,6 +14,9 @@ import (
 )
 
 func main() {
+
+	PrintLogo()
+
 	port := os.Getenv("PORT")
 	args := []string{"-c"}
 	if port == "" {
@@ -48,9 +51,26 @@ func main() {
 	router := chi.NewRouter()
 
 	router.Get("/_health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-		return
+		status := http.StatusOK
+		message := []byte("Process is running")
+
+		if pm.Process == nil {
+			status = http.StatusServiceUnavailable
+			message = []byte("Process is not running")
+		}
+
+		if pm.Process != nil && pm.Process.ProcessState != nil && pm.Process.ProcessState.Exited() {
+			status = http.StatusServiceUnavailable
+			message = []byte("Process has exited")
+		}
+
+		if !pm.KeepAlive {
+			w.WriteHeader(status)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+
+		w.Write(message)
 	})
 
 	router.Put("/process", func(w http.ResponseWriter, r *http.Request) {
