@@ -51,18 +51,21 @@ func main() {
 	router := chi.NewRouter()
 
 	router.Get("/_health", func(w http.ResponseWriter, r *http.Request) {
+		status := http.StatusOK
 		message := []byte("Process is running")
 
 		if pm.Process == nil {
+			status = http.StatusServiceUnavailable
 			message = []byte("Process is not running")
 		}
 
 		if pm.Process != nil && pm.Process.ProcessState != nil && pm.Process.ProcessState.Exited() {
+			status = http.StatusServiceUnavailable
 			message = []byte("Process has exited")
 		}
 
 		if !pm.KeepAlive {
-			w.WriteHeader(http.StatusServiceUnavailable)
+			w.WriteHeader(status)
 		} else {
 			w.WriteHeader(http.StatusOK)
 		}

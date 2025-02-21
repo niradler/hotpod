@@ -41,6 +41,11 @@ func (pm *ProcessManager) StartProcess(command string, replace bool, customEnv *
 
 	if pm.Process != nil {
 		if replace {
+			if !pm.KeepAlive {
+				pm.mu.Unlock()
+				return errors.New("process is not in keep-alive mode, cannot replace")
+			}
+
 			log.Println("Replacing existing process (PID:", pm.Process.Process.Pid, ")...")
 
 			// Unlock before stopping the process
@@ -85,7 +90,7 @@ func (pm *ProcessManager) StartProcess(command string, replace bool, customEnv *
 			if exitErr, ok := err.(*exec.ExitError); ok {
 				exitCode = exitErr.ExitCode()
 			}
-			log.Printf("Process (PID: %d) exited with status code: %d, reason: %v\n", pid, exitCode, err)
+			log.Printf("Process (PID: %d) exited with status code: %d, reason: %v, keep-alive: %v\n", pid, exitCode, err, pm.KeepAlive)
 		}
 
 		// Ensure process is properly cleaned up
